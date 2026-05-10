@@ -53,7 +53,6 @@ T = range(24)
 probability = 1 / W
 
 
-
 # Balancing price
 balancing_price = np.where(
     imbalance_scenarios == 1,
@@ -84,70 +83,14 @@ P_DA_one_price = np.array([P_DA_1[t].X for t in T])
 expected_profit_one_price = model_1.ObjVal
 
 
-# TWO-PRICE SCHEME
-model_2 = gp.Model("Two_Price_Scheme")
-model_2.Params.OutputFlag = 0
-
-P_DA_2 = model_2.addVars(T, lb=0, ub=P_nom, vtype=GRB.CONTINUOUS, name="P_DA_2")
-
-P_excess = model_2.addVars(W, T, lb=0, ub=P_nom, vtype=GRB.CONTINUOUS, name="P_excess")
-P_deficit = model_2.addVars(W, T, lb=0, ub=P_nom, vtype=GRB.CONTINUOUS, name="P_deficit")
-
-y = model_2.addVars(W, T, vtype=GRB.BINARY, name="is_excess")
-
-M = P_nom
-
-for w in range(W):
-    for t in T:
-        delta = wind_scenarios[w, t] - P_DA_2[t]
-
-        model_2.addConstr(P_excess[w, t] >= delta)
-        model_2.addConstr(P_excess[w, t] <= delta + M * (1 - y[w, t]))
-        model_2.addConstr(P_excess[w, t] <= M * y[w, t])
-
-        model_2.addConstr(P_deficit[w, t] >= -delta)
-        model_2.addConstr(P_deficit[w, t] <= -delta + M * y[w, t])
-        model_2.addConstr(P_deficit[w, t] <= M * (1 - y[w, t]))
-
-excess_price = np.where(
-    imbalance_scenarios == 1,
-    price_scenarios,
-    balancing_price
-)
-
-deficit_price = np.where(
-    imbalance_scenarios == 0,
-    price_scenarios,
-    balancing_price
-)
-
-expected_profit_2 = gp.quicksum(
-    probability * gp.quicksum(
-        price_scenarios[w, t] * P_DA_2[t]
-        + excess_price[w, t] * P_excess[w, t]
-        - deficit_price[w, t] * P_deficit[w, t]
-        for t in T
-    )
-    for w in range(W)
-)
-
-model_2.setObjective(expected_profit_2, GRB.MAXIMIZE)
-model_2.optimize()
-
-P_DA_two_price = np.array([P_DA_2[t].X for t in T])
-expected_profit_two_price = model_2.ObjVal
-
-
 print("\n=== RESULTS ===")
 print(f"Expected profit — one-price: {expected_profit_one_price:.2f} EUR")
-print(f"Expected profit — two-price: {expected_profit_two_price:.2f} EUR")
 
 print("\nHourly DA offers:")
 for t in T:
     print(
         f"Hour {t:02d}: "
         f"One-price = {P_DA_one_price[t]:8.2f} MW | "
-        f"Two-price = {P_DA_two_price[t]:8.2f} MW"
     )
 
 
@@ -161,51 +104,39 @@ for w in range(W):
         for t in T
     )
 
-scenario_profits_two = np.zeros(W)
-
-for w in range(W):
-    scenario_profits_two[w] = sum(
-        price_scenarios[w, t] * P_DA_two_price[t]
-        + excess_price[w, t] * P_excess[w, t].X
-        - deficit_price[w, t] * P_deficit[w, t].X
-        for t in T
-    )
-
-
 # PLOTS
 plt.figure()
 plt.plot(list(T), P_DA_one_price, label="One-price")
-plt.plot(list(T), P_DA_two_price, label="Two-price")
-plt.xlabel("Hour")
+plt.xlabel("Hour", fontsize = 12)
 plt.xticks(list(T), rotation=45)
-plt.ylabel("Day-ahead offer [MW]")
-plt.title("Optimal hourly day-ahead offers")
-plt.legend()
-plt.grid(True)
+plt.ylabel("Day-ahead offer [MW]", fontsize = 12)
+plt.title("Optimal Hourly Day-Ahead Offers - One-Price Scheme", fontsize = 14)
+plt.legend(frameon=True)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.savefig("One_Scheme_Offers.pdf", bbox_inches="tight")
 plt.show()
 
-plt.figure()
-plt.hist(scenario_profits_one, bins=40)
-plt.xlabel("Profit [EUR]")
-plt.ylabel("Number of scenarios")
-plt.title("Profit distribution — one-price scheme")
-plt.grid(True)
-plt.show()
 
 plt.figure()
-plt.hist(scenario_profits_two, bins=40)
-plt.xlabel("Profit [EUR]")
-plt.ylabel("Number of scenarios")
-plt.title("Profit distribution — two-price scheme")
-plt.grid(True)
+plt.hist(scenario_profits_one, bins=40, edgecolor= 'black')
+plt.xlabel("Profit [EUR]", fontsize = 12)
+plt.ylabel("Number of Scenarios", fontsize = 12)
+plt.title("Profit Distribution - One-Price Scheme", fontsize = 14)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.savefig("One_Scheme_Histogram.pdf", bbox_inches="tight")
 plt.show()
 
-plt.figure()
-plt.hist(scenario_profits_one, bins=40, alpha=0.5, label="One-price")
-plt.hist(scenario_profits_two, bins=40, alpha=0.5, label="Two-price")
-plt.xlabel("Profit [EUR]")
-plt.ylabel("Number of scenarios")
-plt.title("Profit distribution comparison")
-plt.legend()
-plt.grid(True)
-plt.show()
+#Computational Aspects
+print(f"Number of constraints: {model_1.NumConstrs}")
+print(f"Number of variables: {model_1.NumVars}")
+print(f"Runtime: {model_1.Runtime:.4f} seconds")
+
+# plt.figure()
+# plt.hist(scenario_profits_one, bins=40, alpha=0.5, label="One-price")
+# plt.hist(scenario_profits_two, bins=40, alpha=0.5, label="Two-price")
+# plt.xlabel("Profit [EUR]")
+# plt.ylabel("Number of scenarios")
+# plt.title("Profit distribution comparison")
+# plt.legend()
+# plt.grid(True)
+# plt.show()
