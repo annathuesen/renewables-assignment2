@@ -165,6 +165,30 @@ def plot_oos_feasibility_vs_reliability(results):
     plt.savefig("2.3_feasibility_vs_realiability.png", dpi=300)
     plt.show()
 
+def plot_bid_and_mean_shortfall_vs_reliability(results):
+    reliability = [row["reliability"] * 100 for row in results]
+    bids = [row["bid"] for row in results]
+    expected_shortfalls = [row["expected_shortfall"] for row in results]
+
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+
+    color = "tab:blue"
+    ax1.set_xlabel("Reliability requirement (%)")
+    ax1.set_ylabel("Optimal reserve bid (kW)", color=color)
+    ax1.plot(reliability, bids, marker="o", color=color)
+    ax1.tick_params(axis="y", labelcolor=color)
+
+    ax2 = ax1.twinx()
+    color = "tab:red"
+    ax2.set_ylabel("Expected shortfall (kW)", color=color)
+    ax2.plot(reliability, expected_shortfalls, marker="o", color=color)
+    ax2.tick_params(axis="y", labelcolor=color)
+
+    plt.title("Task 2.3: Reserve Bid and Expected Shortfall vs Reliability Requirement")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("2.3_bid_and_shortfall_vs_reliability.png", dpi=300)
+    plt.show()
 
 def main():
     F_up = generate_load_profiles()
@@ -177,7 +201,7 @@ def main():
     plot_bid_vs_reliability(results)
     plot_shortfall_vs_reliability(results)
     plot_oos_feasibility_vs_reliability(results)
-
+    plot_bid_and_mean_shortfall_vs_reliability(results)
 
 if __name__ == "__main__":
     main()
