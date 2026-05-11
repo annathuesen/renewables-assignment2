@@ -18,7 +18,7 @@ wind_df = (wind_df / P_rodsand) * P_nom
 wind_df = np.clip(wind_df, 0, P_nom)
 
 # Price data
-price_df = pd.read_csv("Day_Ahead_Market_Price_Data.csv", skiprows=1)
+price_df = pd.read_csv("Day_Ahead_Market_Price_Data_2.csv", skiprows=1)
 price_df = price_df.iloc[:, 1:].to_numpy(dtype=float).T
 
 # System imbalance scenarios
