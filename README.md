@@ -2,6 +2,24 @@
 
 Optimization and market analysis project focused on renewable energy participation in electricity markets using stochastic programming, balancing market analysis, and reliability-based decision making.
 
+# How to Run
+
+Run individual scripts directly from their respective folders.
+
+Example:
+
+```bash
+cd "Step 1"
+python A2_Step1.1.py
+```
+
+or:
+
+```bash
+cd "Step 2"
+python 2.1_In-sample_Decision_Making.py
+```
+
 ---
 
 # Project Overview
@@ -27,11 +45,12 @@ The implementation is primarily written in Python and uses mathematical optimiza
 - NumPy
 - Pandas
 - Matplotlib
+- scikit-learn
 
 Install dependencies:
 
 ```bash
-pip install numpy pandas matplotlib gurobipy
+pip install numpy pandas matplotlib gurobipy scikit-learn
 ```
 
 > Note: Gurobi requires a valid license.
@@ -69,6 +88,12 @@ renewables-assignment2/
 # Step 1 — Market Participation Modeling
 
 This section focuses on stochastic electricity market participation for a renewable energy producer.
+
+## Data
+
+Of the two price files in the folder, only `Day_Ahead_Market_Price_Data_2.csv` is used. The other version contained negative prices, which is why it was discarded.
+
+The prices cover the first 20 days of January 2024 and were downloaded from the ENTSO-E Transparency Platform.
 
 ## Main Topics
 
@@ -119,30 +144,5 @@ Explores the optimization problem from the system operator or Energinet perspect
 
 
 
-# How to Run
-
-Run individual scripts directly from their respective folders.
-
-Example:
-
-```bash
-cd "Step 1"
-python A2_Step1.1.py
-```
-
-or:
-
-```bash
-cd "Step 2"
-python 2.1_In-sample_Decision_Making.py
-```
 
 ---
-
-
-# License
-
-This repository currently does not specify a license.
-
-Consider adding one if the project will be shared publicly.
-
