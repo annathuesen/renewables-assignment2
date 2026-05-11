@@ -78,8 +78,8 @@ lambda_down = np.where(
 # ============================================================
 # CROSS VALIDATION
 # ============================================================
-n_folds = 4 #Change depending on input
-in_sample_size = 400
+n_folds = 8 #Change depending on input
+in_sample_size = 200
 out_sample_size = W - in_sample_size
 
 Two_Price_Scheme = True
@@ -194,22 +194,22 @@ for fold in range(n_folds):
 print(f"Avg in-sample profit:     {np.mean(in_sample_profits):.2f} €")
 print(f"Avg out-of-sample profit: {np.mean(out_sample_profits):.2f} €")  
     
-# #Plots
-# x = np.arange(n_folds)
-# width = 0.35
+#Plots
+x = np.arange(n_folds)
+width = 0.35
 
-# fig, ax = plt.subplots(figsize=(10, 6))
+fig, ax = plt.subplots(figsize=(10, 6))
 
-# bars_in  = ax.bar(x - width/2, in_sample_profits,  width, label='In-sample', edgecolor= 'black')
-# bars_out = ax.bar(x + width/2, out_sample_profits, width, label='Out-of-sample', edgecolor= 'black')
+bars_in  = ax.bar(x - width/2, in_sample_profits,  width, label='In-sample', edgecolor= 'black')
+bars_out = ax.bar(x + width/2, out_sample_profits, width, label='Out-of-sample', edgecolor= 'black')
 
-# ax.set_xlabel('Fold', fontsize = 12)
-# ax.set_ylabel('Expected Profit (€)', fontsize = 12)
-# ax.set_title(f'Cross-Validation: In-sample vs Out-of-sample Profit - Two-Price-Scheme', fontsize = 14)
-# ax.set_xticks(x)
-# ax.set_xticklabels([f'Fold {i+1}' for i in range(n_folds)])
-# ax.legend(frameon=True)
-# ax.grid(axis='y', linestyle='--', alpha=0.5)
-# plt.tight_layout()
-# plt.savefig(f'two_price_cross_validation_{in_sample_size}.pdf', dpi=150)
-# plt.show()
+ax.set_xlabel('Fold', fontsize = 12)
+ax.set_ylabel('Expected Profit (€)', fontsize = 12)
+ax.set_title(f'Cross-Validation: In-sample vs Out-of-sample Profit - Two-Price-Scheme', fontsize = 14)
+ax.set_xticks(x)
+ax.set_xticklabels([f'Fold {i+1}' for i in range(n_folds)])
+ax.legend(frameon=True)
+ax.grid(axis='y', linestyle='--', alpha=0.5)
+plt.tight_layout()
+plt.savefig(f'two_price_cross_validation_{in_sample_size}.pdf', dpi=150)
+plt.show()
