@@ -1,11 +1,15 @@
 #%%
 """
 Task 2.3) Energinet Perspective
-Analyze how modifying the P90 requirement (e.g., threshold between 80% and 100%) affects the
-optimal reserve bid (in-sample) and the expected reserve shortfall (out-of-sample) when using
-ALSO-X. Discuss whether a trade-off emerges between higher reliability and reduced reserve
-provision.
+
+Minute-level ALSO-X reliability sweep matching the report notation.
+For each reliability requirement P, the model solves:
+    max c^up
+    s.t. c^up - F^up_{omega,m} <= M y_{omega,m}
+         sum y_{omega,m} <= floor((1-P)*|Omega_IS|*|T|)
+The resulting bid is evaluated on out-of-sample minute-scenario pairs.
 """
+
 import numpy as np
 import gurobipy as gp
 from gurobipy import GRB
@@ -19,84 +23,81 @@ P_MAX = 600.0
 MAX_RAMP = 35.0
 N_IN_SAMPLE = 100
 SEED = 42
+BIG_M = P_MAX
 
 
 def generate_load_profiles():
     rng = np.random.default_rng(SEED)
-    profiles = np.zeros((N_PROFILES, N_MINUTES))
+    F_up = np.zeros((N_PROFILES, N_MINUTES))
 
-    for s in range(N_PROFILES):
-        profiles[s, 0] = rng.uniform(P_MIN, P_MAX)
+    for omega in range(N_PROFILES):
+        F_up[omega, 0] = rng.uniform(P_MIN, P_MAX)
 
-        for t in range(1, N_MINUTES):
-            low = max(P_MIN, profiles[s, t - 1] - MAX_RAMP)
-            high = min(P_MAX, profiles[s, t - 1] + MAX_RAMP)
-            profiles[s, t] = rng.uniform(low, high)
+        for m in range(1, N_MINUTES):
+            low = max(P_MIN, F_up[omega, m - 1] - MAX_RAMP)
+            high = min(P_MAX, F_up[omega, m - 1] + MAX_RAMP)
+            F_up[omega, m] = rng.uniform(low, high)
 
-    return profiles
-
-
-def scenario_reserve_capacities(profiles):
-    return np.min(profiles, axis=1)
+    return F_up
 
 
-def solve_also_x_gurobi(capacities, reliability_level):
-    capacities = np.asarray(capacities)
-    n = len(capacities)
+def solve_also_x_gurobi(F_up_in_sample, reliability_level):
+    reliability_level = min(max(float(reliability_level), 0.0), 1.0)
+    epsilon = 1.0 - reliability_level
 
-    reliability_level = min(max(reliability_level, 0.0), 1.0)
-    allowed_violations = int(np.floor((1.0 - reliability_level) * n))
-    allowed_violations = max(0, allowed_violations)
+    n_omega, n_m = F_up_in_sample.shape
+    q = int(np.floor(epsilon * n_omega * n_m))
+    q = max(0, q)
 
-    model = gp.Model("also_x_reliability_sweep")
+    model = gp.Model("also_x_reliability_sweep_minute_level")
     model.Params.OutputFlag = 0
 
-    bid = model.addVar(lb=0.0, ub=P_MAX, name="bid")
-    violation = model.addVars(n, vtype=GRB.BINARY, name="violation")
+    c_up = model.addVar(lb=0.0, ub=P_MAX, name="c_up")
+    y = model.addVars(n_omega, n_m, vtype=GRB.BINARY, name="y")
 
-    for s in range(n):
-        model.addConstr(bid <= capacities[s] + P_MAX * violation[s])
+    for omega in range(n_omega):
+        for m in range(n_m):
+            model.addConstr(c_up - F_up_in_sample[omega, m] <= BIG_M * y[omega, m])
 
-    model.addConstr(gp.quicksum(violation[s] for s in range(n)) <= allowed_violations)
-
-    model.setObjective(bid, GRB.MAXIMIZE)
+    model.addConstr(gp.quicksum(y[omega, m] for omega in range(n_omega) for m in range(n_m)) <= q)
+    model.setObjective(c_up, GRB.MAXIMIZE)
     model.optimize()
 
     if model.Status != GRB.OPTIMAL:
         raise RuntimeError(f"Gurobi failed with status {model.Status}")
 
-    return float(bid.X)
+    return float(c_up.X)
 
 
-def evaluate_out_of_sample(out_sample_profiles, bid):
-    capacities = scenario_reserve_capacities(out_sample_profiles)
-    shortfalls = np.maximum(0.0, bid - capacities)
-    feasible = shortfalls == 0.0
+def evaluate_out_of_sample(F_up_out_sample, c_up, reliability_level):
+    epsilon = 1.0 - reliability_level
+    shortfall = np.maximum(0.0, c_up - F_up_out_sample)
+    violated = shortfall > 1e-8
+
+    # Minute-based feasibility across all OOS minute-scenario pairs
+    out_sample_feasibility = 1.0 - np.mean(violated)
+
+    # Profile-based P-requirement: each profile may have at most floor(epsilon*60) violated minutes
+    max_violated_minutes = int(np.floor(epsilon * N_MINUTES))
+    profile_feasible = np.sum(violated, axis=1) <= max_violated_minutes
 
     return {
-        "out_sample_feasibility": float(np.mean(feasible)),
-        "expected_shortfall": float(np.mean(shortfalls)),
-        "max_shortfall": float(np.max(shortfalls)),
+        "out_sample_feasibility": float(out_sample_feasibility),
+        "profile_feasibility": float(np.mean(profile_feasible)),
+        "expected_shortfall": float(np.mean(shortfall)),
+        "max_shortfall": float(np.max(shortfall)),
     }
 
 
-def run_reliability_sweep(in_sample_profiles, out_sample_profiles):
-    in_sample_capacities = scenario_reserve_capacities(in_sample_profiles)
+def run_reliability_sweep(F_up_in_sample, F_up_out_sample):
     reliability_levels = np.round(np.linspace(0.80, 1.00, 21), 2)
-
     results = []
 
     for reliability in reliability_levels:
-        bid = solve_also_x_gurobi(in_sample_capacities, reliability)
-        metrics = evaluate_out_of_sample(out_sample_profiles, bid)
+        c_up = solve_also_x_gurobi(F_up_in_sample, reliability)
+        metrics = evaluate_out_of_sample(F_up_out_sample, c_up, reliability)
 
-        results.append(
-            {
-                "reliability": reliability,
-                "bid": bid,
-                **metrics,
-            }
-        )
+        results.append({"reliability": reliability, "bid": c_up, **metrics})
 
     return results
 
@@ -105,18 +106,19 @@ def print_results(results):
     print("Task 2.3 — Energinet Perspective using ALSO-X")
     print("============================================")
     print(
-        f"{'Reliability':>12} | {'Bid kW':>10} | "
-        f"{'OOS feasible':>12} | {'Exp. shortfall kW':>18} | {'Max shortfall kW':>17}"
+        f"{'Reliability':>12} | {'Bid kW':>10} | {'OOS minute feasible':>19} | "
+        f"{'OOS profile feasible':>20} | {'Exp. shortfall kW':>18} | {'Max shortfall kW':>17}"
     )
-    print("-" * 84)
+    print("-" * 110)
 
     for row in results:
         print(
             f"{row['reliability']:>11.0%} | "
             f"{row['bid']:>10.2f} | "
-            f"{row['out_sample_feasibility']:>11.2%} | "
-            f"{row['expected_shortfall']:>18.2f} | "
-            f"{row['max_shortfall']:>17.2f}"
+            f"{row['out_sample_feasibility']:>18.2%} | "
+            f"{row['profile_feasibility']:>19.2%} | "
+            f"{row['expected_shortfall']:>18.4f} | "
+            f"{row['max_shortfall']:>17.4f}"
         )
 
 
@@ -126,12 +128,12 @@ def plot_bid_vs_reliability(results):
 
     plt.figure(figsize=(10, 5))
     plt.plot(reliability, bids, marker="o")
-
     plt.xlabel("Reliability requirement (%)")
     plt.ylabel("Optimal reserve bid (kW)")
     plt.title("Task 2.3: Reserve Bid vs Reliability Requirement")
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("2.3_bid_vs_reliability.png", dpi=300)
     plt.show()
 
 
@@ -143,13 +145,13 @@ def plot_shortfall_vs_reliability(results):
     plt.figure(figsize=(10, 5))
     plt.plot(reliability, expected_shortfalls, marker="o", label="Expected shortfall")
     plt.plot(reliability, max_shortfalls, marker="x", label="Maximum shortfall")
-
     plt.xlabel("Reliability requirement (%)")
     plt.ylabel("Out-of-sample shortfall (kW)")
     plt.title("Task 2.3: Out-of-Sample Shortfall vs Reliability Requirement")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("2.3_shortfall_vs_reliability.png", dpi=300)
     plt.show()
 
 
@@ -160,47 +162,23 @@ def plot_oos_feasibility_vs_reliability(results):
     plt.figure(figsize=(10, 5))
     plt.plot(reliability, feasibility, marker="o")
     plt.axhline(90, linestyle="--", label="P90 target")
-
     plt.xlabel("Reliability requirement (%)")
     plt.ylabel("Out-of-sample feasibility (%)")
     plt.title("Task 2.3: Out-of-Sample Feasibility vs Reliability Requirement")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("2.3_feasibility_vs_realiability.png", dpi=300)
     plt.show()
 
 
-def print_discussion():
-    print("\nDiscussion")
-    print("----------")
-    print(
-        "As the reliability threshold increases from 80% to 100%, ALSO-X allows "
-        "fewer in-sample violations."
-    )
-    print(
-        "The optimal reserve bid therefore decreases or stays constant because "
-        "the bid must be feasible for more scenarios."
-    )
-    print(
-        "The expected out-of-sample shortfall generally decreases when the "
-        "reliability requirement becomes stricter."
-    )
-    print(
-        "A trade-off appears: higher reliability reduces shortfall risk, but it "
-        "also reduces the amount of reserve capacity offered."
-    )
-
-
 def main():
-    profiles = generate_load_profiles()
+    F_up = generate_load_profiles()
+    F_up_in_sample = F_up[:N_IN_SAMPLE]
+    F_up_out_sample = F_up[N_IN_SAMPLE:]
 
-    in_sample_profiles = profiles[:N_IN_SAMPLE]
-    out_sample_profiles = profiles[N_IN_SAMPLE:]
-
-    results = run_reliability_sweep(in_sample_profiles, out_sample_profiles)
-
+    results = run_reliability_sweep(F_up_in_sample, F_up_out_sample)
     print_results(results)
-    print_discussion()
 
     plot_bid_vs_reliability(results)
     plot_shortfall_vs_reliability(results)
