@@ -2,11 +2,9 @@
 """
 Task 2.1) In-sample Decision Making: Offering Strategy Under the P90 Requirement
 
-Minute-level implementation matching the report notation:
-- F_up[omega, m] is the available flexible load in scenario omega and minute m.
-- c_up is the reserve capacity bid.
-- ALSO-X uses binary variables y[omega, m] to indicate violated minute-scenario pairs.
-- CVaR uses beta_P90 and zeta_P90[omega, m] to control tail shortfall risk.
+ 
+ Both CVar and ALSO-X formulations are implemented at the minute level, useing examples and inspiration from the Gurobi documentation and stack overflow
+
 """
 
 import numpy as np
@@ -31,7 +29,6 @@ BIG_M = P_MAX
 # Data generation
 # -----------------------------------------------------------------------------
 def generate_load_profiles():
-    """Generate F^up_{omega,m} profiles satisfying load and ramp constraints."""
     rng = np.random.default_rng(SEED)
     F_up = np.zeros((N_PROFILES, N_MINUTES))
 
@@ -47,7 +44,6 @@ def generate_load_profiles():
 
 
 def scenario_reserve_capacities(F_up):
-    """c^up_omega = min_m F^up_{omega,m}, used only for plotting/interpretation."""
     return np.min(F_up, axis=1)
 
 
@@ -102,7 +98,8 @@ def solve_cvar_gurobi(F_up_in_sample):
              zeta^P90_{omega,m} >= 0
              beta^P90 + 1/(epsilon*|Omega_IS|*|T|) * sum zeta^P90_{omega,m} <= 0
 
-    beta^P90 is the VaR auxiliary variable and zeta^P90 controls excess shortfall.
+
+    CVaR partly dug up from stack overflow and Gurobi examples, adapted to our minute-level setting.
     """
     n_omega, n_m = F_up_in_sample.shape
     n_pairs = n_omega * n_m

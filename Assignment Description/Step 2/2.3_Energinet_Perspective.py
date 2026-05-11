@@ -2,12 +2,6 @@
 """
 Task 2.3) Energinet Perspective
 
-Minute-level ALSO-X reliability sweep matching the report notation.
-For each reliability requirement P, the model solves:
-    max c^up
-    s.t. c^up - F^up_{omega,m} <= M y_{omega,m}
-         sum y_{omega,m} <= floor((1-P)*|Omega_IS|*|T|)
-The resulting bid is evaluated on out-of-sample minute-scenario pairs.
 """
 
 import numpy as np

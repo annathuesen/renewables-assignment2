@@ -2,9 +2,7 @@
 """
 Task 2.2) Verification of the P90 Requirement Using Out-of-Sample Analysis
 
-Minute-level implementation matching the report notation. The reserve bids are first obtained
-from the 100 in-sample profiles using the same ALSO-X and CVaR formulations as Task 2.1.
-They are then tested on 200 out-of-sample profiles by comparing c^up with F^up_{omega,m}.
+
 """
 
 import numpy as np
